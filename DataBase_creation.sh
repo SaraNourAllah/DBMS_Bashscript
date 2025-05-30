@@ -27,5 +27,28 @@ function create_database() {
         echo "Database '$dbname' created."
     fi
 }
+function list_databases() {
+    echo "Databases:"
+    ls "$DB_PATH"
+}
 
+function drop_database() {
+    read -p "Enter database name to drop: " dbname
+    if [[ -d "$DB_PATH/$dbname" ]]; then
+        rm -r "$DB_PATH/$dbname"
+        echo "Database '$dbname' deleted."
+    else
+        echo "Database not found."
+    fi
+}
+
+function connect_database() {
+    read -p "Enter database name to connect: " dbname
+    if [[ -d "$DB_PATH/$dbname" ]]; then
+        echo "Connected to '$dbname'"
+        database_menu "$dbname"
+    else
+        echo "Database does not exist."
+    fi
+}
 main_menu
