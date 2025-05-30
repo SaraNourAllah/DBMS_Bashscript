@@ -106,3 +106,91 @@ function drop_table() {
         echo "Table not found."
     fi
 }
+
+function insert_into_table() {
+    local dbname="$1"
+    local tablename
+    local table_path
+    local meta_path
+
+    read -p "Enter table name: " tablename
+
+    table_path="$DB_PATH/$dbname/$tablename"
+    meta_path="$DB_PATH/$dbname/.$tablename.meta"
+
+    if [[ ! -f "$table_path" || ! -f "$meta_path" ]]; then
+        echo "Table or metadata file does not exist."
+        return
+    fi
+
+    mapfile -t cols_meta < <(grep -v '^$' "$meta_path")
+
+    if [[ ${#cols_meta[@]} -eq 0 ]]; then
+        echo "Metadata file is empty or invalid."
+        return
+    fi
+
+    record=""
+
+    for line in "${cols_meta[@]}"; do
+        IFS=: read -r col_name col_type is_pk <<< "$line"
+
+        while true; do
+            read -p "Enter value for column '$col_name' ($col_type): " value
+
+            if [[ "$col_type" == "int" ]]; then
+                if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+                    echo "Invalid integer for column '$col_name'. Try again."
+                    continue
+                fi
+            elif [[ "$col_type" == "string" ]]; then
+                if [[ "$value" == *:* ]]; then
+                    echo "Invalid string: colon ':' not allowed."
+                    continue
+                fi
+            fi
+
+            if [[ "$is_pk" == "yes" ]]; then
+
+                col_index=$(( $(grep -n "^$col_name:" "$meta_path" | cut -d: -f1) ))
+
+                if awk -F: -v val="$value" -v idx="$col_index" 'NR>0 {if ($idx==val) exit 1}' "$table_path"; then
+
+                    :
+                else
+                    echo "Duplicate primary key value '$value'. Try again."
+                    continue
+                fi
+            fi
+
+            break
+        done
+
+        record+="$value:"
+    done
+
+    record="${record%:}"
+    echo "$record" >> "$table_path"
+    echo "Record inserted successfully."
+}
+
+function select_from_table() {
+    local dbname="$1"
+    read -p "Enter table name: " tablename
+
+    local table_path="$DB_PATH/$dbname/$tablename"
+    local meta_path="$DB_PATH/$dbname/.$tablename.meta"
+
+    if [[ ! -f "$table_path" || ! -f "$meta_path" ]]; then
+        echo "Table or metadata file does not exist."
+        return
+    fi
+
+    awk -F: '{printf "%-15s", $1}' "$meta_path"
+    echo
+
+    awk -F: '{
+        for(i=1; i<=NF; i++) printf "%-15s", $i;
+        print ""
+    }' "$table_path"
+}
