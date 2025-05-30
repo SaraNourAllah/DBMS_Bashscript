@@ -51,4 +51,7 @@ function connect_database() {
         echo "Database does not exist."
     fi
 }
+
+source "./Tables.sh"
+
 main_menu
