@@ -18,4 +18,14 @@ function main_menu() {
     done
 }
 
+function create_database() {
+    read -p "Enter database name: " dbname
+    if [[ -d "$DB_PATH/$dbname" ]]; then
+        echo "Database already exists."
+    else
+        mkdir "$DB_PATH/$dbname"
+        echo "Database '$dbname' created."
+    fi
+}
+
 main_menu
