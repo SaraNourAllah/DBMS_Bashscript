@@ -194,3 +194,49 @@ function select_from_table() {
         print ""
     }' "$table_path"
 }
+
+
+function delete_from_table() {
+    local dbname="$1"
+    read -p "Enter table name: " tablename
+
+    local table="$DB_PATH/$dbname/$tablename"
+    local meta="$DB_PATH/$dbname/.$tablename.meta"
+
+    if [[ ! -f "$table" || ! -f "$meta" ]]; then
+        echo "Table not found."
+        return
+    fi
+
+    echo "Delete by:"
+    select method in "Primary Key" "Cancel"; do
+        case $REPLY in
+            1)
+                local pk_col=$(awk -F: '$3 == "yes" { print $1 }' "$meta")
+                read -p "Enter value of primary key ($pk_col): " pk_val
+
+                local pk_index=$(awk -F: -v pk="$pk_col" '{ if($1 == pk) print NR-1 }' "$meta")
+                if [[ -z "$pk_index" ]]; then
+                    echo "Primary key not found in meta."
+                    return
+                fi
+
+                if grep -q "^.*\(:.*\)\{${pk_index}\}$pk_val:" "$table" || grep -q "^$pk_val:" "$table"; then
+                    grep -v "^.*\(:.*\)\{${pk_index}\}$pk_val[:$]" "$table" > "$table.tmp"
+                    mv "$table.tmp" "$table"
+                    echo "Row deleted."
+                else
+                    echo "No row found with primary key = $pk_val."
+                fi
+                break
+                ;;
+            2)
+                echo "Delete cancelled."
+                break
+                ;;
+            *)
+                echo "Invalid option."
+                ;;
+        esac
+    done
+}
