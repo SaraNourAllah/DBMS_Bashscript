@@ -240,3 +240,72 @@ function delete_from_table() {
         esac
     done
 }
+
+function update_table() {
+    local dbname="$1"
+    read -p "Enter table name: " tablename
+
+    local table="$DB_PATH/$dbname/$tablename"
+    local meta="$DB_PATH/$dbname/.$tablename.meta"
+
+    if [[ ! -f "$table" || ! -f "$meta" ]]; then
+        echo "Table not found."
+        return
+    fi
+
+    local pk_col=$(awk -F: '$3 == "yes" { print $1 }' "$meta")
+    local pk_index=$(awk -F: -v pk="$pk_col" '{ if($1 == pk) print NR }' "$meta")
+
+    read -p "Enter value of primary key ($pk_col) to update: " pk_val
+
+    local line_num=$(awk -F: -v idx="$pk_index" -v val="$pk_val" '{
+        if ($idx == val) {
+            print NR
+            found=1
+            exit
+        }
+    } END { if (!found) exit 1 }' "$table")
+
+    if [[ -z "$line_num" ]]; then
+        echo "No row found with that primary key value."
+        return
+    fi
+
+    echo "Which column do you want to update?"
+    mapfile -t cols_meta < "$meta"
+    for (( i=0; i<${#cols_meta[@]}; i++ )); do
+        IFS=: read -r col_name _ <<< "${cols_meta[i]}"
+        echo "$((i+1))) $col_name"
+    done
+
+    read -p "Enter column number: " col_choice
+    if ! [[ "$col_choice" =~ ^[1-9][0-9]*$ && "$col_choice" -le "${#cols_meta[@]}" ]]; then
+        echo "Invalid choice."
+        return
+    fi
+
+    IFS=: read -r upd_col upd_type is_pk <<< "${cols_meta[$((col_choice-1))]}"
+    if [[ "$is_pk" == "yes" ]]; then
+        echo "Cannot update primary key."
+        return
+    fi
+
+    read -p "Enter new value for '$upd_col' ($upd_type): " new_val
+    if [[ "$upd_type" == "int" && ! "$new_val" =~ ^[0-9]+$ ]]; then
+        echo "Invalid integer."
+        return
+    fi
+    if [[ "$upd_type" == "string" && "$new_val" == *:* ]]; then
+        echo "Invalid string (colon not allowed)."
+        return
+    fi
+
+    awk -v line="$line_num" -v idx="$col_choice" -v new="$new_val" -F: 'BEGIN{OFS=":"}{
+        if (NR == line) {
+            $idx = new
+        }
+        print
+    }' "$table" > "$table.tmp" && mv "$table.tmp" "$table"
+
+    echo "Record updated."
+}
